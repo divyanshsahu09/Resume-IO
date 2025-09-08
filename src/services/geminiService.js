@@ -1,9 +1,20 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import * as pdfjsLib from 'pdfjs-dist';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
+
+// Configure PDF.js worker (Vite-compatible)
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+
+// Load environment variables
+const API_KEY = import.meta.env.VITE_API_KEY;
 
 class GeminiService {
   constructor() {
+    if (!API_KEY) {
+      throw new Error('API_KEY is not defined in environment variables');
+    }
     this.genAI = new GoogleGenerativeAI(API_KEY);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   }
 
   async analyzeResume(jobDescription, resumeText) {
@@ -34,79 +45,50 @@ class GeminiService {
       `;
 
       const result = await this.model.generateContent(prompt);
-      const response = await result.response;
+      const response = result.response;
       const text = response.text();
-      
+
+      // Robust JSON extraction (handles nested braces)
+      let parsed;
       try {
-        // Try to parse JSON response
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          return JSON.parse(jsonMatch[0]);
-        }
-      } catch (parseError) {
-        console.error('Failed to parse JSON response:', parseError);
+        const match = text.match(/\{(?:[^{}]|{[^{}]*})*\}/);
+        if (!match) throw new Error('No JSON object found in model response.');
+        parsed = JSON.parse(match[0]);
+      } catch (err) {
+        console.error('Raw model response:', text);
+        throw new Error('Failed to parse API response as JSON.');
       }
 
-      // Fallback: create structured response from text
-      return this.parseTextResponse(text);
+      return parsed;
     } catch (error) {
       console.error('Error analyzing resume:', error);
-      // Return demo data for development
-      return this.getDemoAnalysis();
+      throw new Error(`Analysis failed: ${error.message}`);
     }
   }
 
-  parseTextResponse(text) {
-    // Simple text parsing fallback
-    const lines = text.split('\n').filter(line => line.trim());
-    
-    return {
-      positives: lines.slice(0, 3).map(line => line.replace(/^[•\-*]\s*/, '')),
-      negatives: lines.slice(3, 6).map(line => line.replace(/^[•\-*]\s*/, '')),
-      improvements: lines.slice(6, 9).map(line => line.replace(/^[•\-*]\s*/, '')),
-      overallScore: Math.floor(Math.random() * 40) + 60 // 60-100 range
-    };
-  }
-
-  getDemoAnalysis() {
-    return {
-      positives: [
-        "Strong technical skills aligned with job requirements",
-        "Relevant work experience in similar roles",
-        "Good educational background",
-        "Clear and well-structured resume format"
-      ],
-      negatives: [
-        "Missing some key skills mentioned in job description",
-        "Could benefit from more quantified achievements",
-        "Limited experience with specific technologies required"
-      ],
-      improvements: [
-        "Add specific metrics and numbers to demonstrate impact",
-        "Include more relevant keywords from the job posting",
-        "Consider adding a professional summary section",
-        "Highlight projects that demonstrate required skills"
-      ],
-      overallScore: 78
-    };
-  }
-
   async extractTextFromFile(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      
-      reader.onload = (event) => {
-        const text = event.target.result;
-        resolve(text);
-      };
-      
-      reader.onerror = (error) => {
-        reject(error);
-      };
-      
-      // For now, read as text. In production, you'd want to handle PDFs properly
-      reader.readAsText(file);
-    });
+    try {
+      if (file.type !== 'application/pdf') {
+        throw new Error('Please upload a PDF file.');
+      }
+
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      let textContent = '';
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const text = await page.getTextContent();
+        const strings = text.items.map(item => item.str.trim());
+        textContent += strings.join(' ') + '\n\n';
+      }
+
+      return textContent;
+    } catch (error) {
+      console.error('Error extracting text from PDF:', error);
+      throw new Error(`Failed to extract text from PDF: ${error.message}`);
+    }
   }
 }
 

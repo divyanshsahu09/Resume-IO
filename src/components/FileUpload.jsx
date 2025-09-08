@@ -63,7 +63,7 @@ const FileUpload = ({ title, subtitle, onFileUpload, acceptedFiles, icon }) => {
                 {isDragActive ? 'Drop your file here' : 'Drag & drop your file here'}
               </div>
               <div className="text-gray-400 text-sm mb-2">or click to browse</div>
-              <div className="text-gray-500 text-xs">Supports: TXT,PDF,DOC,DOCX</div>
+              <div className="text-gray-500 text-xs">Supports: PDF, TXT files</div>
             </div>
           )}
         </motion.div>
