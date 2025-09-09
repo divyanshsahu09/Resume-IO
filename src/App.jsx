@@ -1,20 +1,21 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import FileUpload from './components/FileUpload';
+import TextAreaInput from './components/TextAreaInput';
 import AnalysisResult from './components/AnalysisResult';
 import LoadingSpinner from './components/LoadingSpinner';
 import geminiService from './services/geminiService';
 
 function App() {
-  const [jobDescription, setJobDescription] = useState(null);
+  const [jobDescription, setJobDescription] = useState('');
   const [resume, setResume] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const handleAnalyze = async () => {
-    if (!jobDescription || !resume) {
-      setError('Please upload both job description and resume files');
+    if (!jobDescription.trim() || !resume) {
+      setError('Please provide a job description and upload your resume');
       return;
     }
 
@@ -22,12 +23,11 @@ function App() {
     setError(null);
 
     try {
-      // Extract text from files
-      const jobText = await geminiService.extractTextFromFile(jobDescription);
-      const resumeText = await geminiService.extractTextFromFile(resume);
+      // ✅ Fixed: call the new method name
+      const resumeText = await geminiService.extractResumeText(resume);
 
       // Analyze with Gemini
-      const result = await geminiService.analyzeResume(jobText, resumeText);
+      const result = await geminiService.analyzeResume(jobDescription, resumeText);
       setAnalysis(result);
     } catch (error) {
       console.error('Analysis failed:', error);
@@ -39,13 +39,21 @@ function App() {
 
   const jobDescriptionIcon = (
     <svg className="w-12 h-12 text-primary-400" fill="currentColor" viewBox="0 0 20 20">
-      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+      <path
+        fillRule="evenodd"
+        d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+        clipRule="evenodd"
+      />
     </svg>
   );
 
   const resumeIcon = (
     <svg className="w-12 h-12 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-      <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
+      <path
+        fillRule="evenodd"
+        d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z"
+        clipRule="evenodd"
+      />
     </svg>
   );
 
@@ -69,7 +77,7 @@ function App() {
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              transition={{ duration: 0.5, type: "spring", stiffness: 200 }}
+              transition={{ duration: 0.5, type: 'spring', stiffness: 200 }}
               className="bg-primary-600 p-3 rounded-xl mr-4"
             >
               <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -103,7 +111,7 @@ function App() {
           </motion.div>
         </motion.div>
 
-        {/* File Upload Section */}
+        {/* Upload Section */}
         {!analysis && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -112,16 +120,12 @@ function App() {
             className="max-w-6xl mx-auto"
           >
             <div className="grid md:grid-cols-2 gap-8 mb-8">
-              <FileUpload
+              <TextAreaInput
                 title="Job Description"
-                subtitle="Job Description"
-                onFileUpload={setJobDescription}
-                acceptedFiles={{
-                  'text/plain': ['.txt'],
-                  'application/pdf': ['.pdf'],
-                  'application/msword': ['.doc'],
-                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-                }}
+                subtitle="Paste Job Description"
+                value={jobDescription}
+                onChange={setJobDescription}
+                placeholder="Paste the job description here..."
                 icon={jobDescriptionIcon}
               />
 
@@ -130,10 +134,7 @@ function App() {
                 subtitle="Resume"
                 onFileUpload={setResume}
                 acceptedFiles={{
-                  'text/plain': ['.txt'],
-                  'application/pdf': ['.pdf'],
-                  'application/msword': ['.doc'],
-                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+                  'application/pdf': ['.pdf'], // ✅ restrict to PDF
                 }}
                 icon={resumeIcon}
               />
@@ -156,7 +157,7 @@ function App() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleAnalyze}
-                disabled={!jobDescription || !resume || isLoading}
+                disabled={!jobDescription.trim() || !resume || isLoading}
                 className="bg-gradient-to-r from-primary-600 to-blue-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl transition-all duration-300"
               >
                 <div className="flex items-center">
@@ -183,7 +184,7 @@ function App() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   setAnalysis(null);
-                  setJobDescription(null);
+                  setJobDescription('');
                   setResume(null);
                   setError(null);
                 }}
